@@ -1,0 +1,5 @@
+# Ref: https://gist.github.com/terrychan999/15114a0bf5da9cb8f636115602249be6
+deb http://free.nchc.org.tw/ubuntu/ noble main restricted universe multiverse
+deb http://free.nchc.org.tw/ubuntu/ noble-updates main restricted universe multiverse
+deb http://free.nchc.org.tw/ubuntu/ noble-security main restricted universe multiverse
+deb http://free.nchc.org.tw/ubuntu/ noble-backports main restricted universe multiverse
