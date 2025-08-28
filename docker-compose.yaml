@@ -1,7 +1,6 @@
 services:
   pub:
     build: .
-    container_name: pub
     stdin_open: true
     tty: true
     volumes:
@@ -16,7 +15,6 @@ services:
 
   sub:
     build: .
-    container_name: sub
     stdin_open: true
     tty: true
     volumes:

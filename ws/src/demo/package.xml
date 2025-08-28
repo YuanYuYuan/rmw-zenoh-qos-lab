@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>demo</name>
+  <version>0.0.1</version>
+  <description>Demo for configuring rmw_zenoh_cpp</description>
+
+  <maintainer email="yyyuanowo@gmail.com">Yuyuan Yuan</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rcl</depend>
+  <depend>rcutils</depend>
+  <depend>std_msgs</depend>
+  <depend>rosidl_default_generators</depend>
+  <depend>example_interfaces</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

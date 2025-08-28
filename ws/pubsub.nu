@@ -10,7 +10,7 @@ if $exists {
 } else {
     # Emulating a WiFi environment
     print "Adding traffic control rule..."
-    sudo tc qdisc add dev eth0 root tbf rate 100mbit burst 200kbit latency 50ms
+    tc qdisc add dev eth0 root tbf rate 100mbit burst 200kbit latency 10ms
 }
 
 def cleanup [] {
@@ -28,7 +28,7 @@ $env.RUST_LOG = "info"
 # $env.RUST_LOG = "trace"
 
 let use_compression = false
-let use_shared_memory = false
+let use_shared_memory = true
 
 # TODO: Implement it
 # let use_qos = false
@@ -52,7 +52,6 @@ def main [--mode: string = "sub"] {
     cleanup
 }
 
-# TODO: blockfirst has been corrected to block_first upstream
 let qos_config = [
     # Rule 1 for all messages with a size greater than the threshold
     {
@@ -64,12 +63,14 @@ let qos_config = [
 
         # (Required) Rules to apply
         overwrite: {
+            # TODO: blockfirst has been corrected to block_first upstream
             # Block only on the most recent sample
             congestion_control: "blockfirst"
+            priority: -1
         }
     }
 
-    # (Optional) Rule 2 for topic_1 regarding small and emergent messages
+    # Rule 2 for topic_1 regarding small and emergent messages
     {
         key_exprs: ["**/topic_1/**"]
 
@@ -77,23 +78,11 @@ let qos_config = [
         messages: ["put"],
 
         overwrite: {
+            # express: true,
             priority: "data_high"
         }
     }
 
-    # (Optional) Rule 3 for topic_2 regarding large, low-priority payloads
-    {
-        key_exprs: ["**/topic_2/**"]
-
-        # (Required) List of message types to apply to.
-        messages: ["put"],
-
-        # (Required) Rules to apply
-        overwrite: {
-            congestion_control: "blockfirst"
-            priority: "data_low"
-        }
-    }
 ]
 
 let transport_config = {
@@ -142,6 +131,7 @@ let cfg = {
     }
 
     pub_node: {
+        qos/network: $qos_config
         transport: $transport_config
     }
 
@@ -175,12 +165,12 @@ def override_by [key: string] {
 def run_pub [] {
     let zenohd = job spawn {
         with-env { ZENOH_CONFIG_OVERRIDE: (override_by 'pub_router') } {
-            ros2 run rmw_zenoh_cpp rmw_zenohd o+e> pub.log
+            ros2 run rmw_zenoh_cpp rmw_zenohd o+e> _pub-router.log
         }
     }
 
     with-env { ZENOH_CONFIG_OVERRIDE: (override_by 'pub_node') } {
-        (ros2 run rcl_minimal_test dual_pubsub
+        (ros2 run --prefix "taskset -c 0,2" demo dual_pubsub
             --mode pub
             --duration 100
             --rate1 100
@@ -196,12 +186,15 @@ def run_pub [] {
 def run_sub [] {
     let zenohd = job spawn {
         with-env { ZENOH_CONFIG_OVERRIDE: (override_by 'sub_router') } {
-            ros2 run rmw_zenoh_cpp rmw_zenohd o+e> sub.log
+            ros2 run rmw_zenoh_cpp rmw_zenohd o+e> _sub-router.log
         }
     }
 
     with-env { ZENOH_CONFIG_OVERRIDE: (override_by 'sub_node') } {
-        ros2 run rcl_minimal_test dual_pubsub --mode sub --duration 0
+        (ros2 run --prefix "taskset -c 1,3" demo dual_pubsub
+            --mode sub
+            --duration 0
+        )
     }
 
     job kill $zenohd
