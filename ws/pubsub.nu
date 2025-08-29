@@ -6,11 +6,15 @@ let exists = (tc qdisc show dev eth0 | str contains "tbf")
 
 # Add the qdisc only if it doesn't exist
 if $exists {
-    print "Traffic control rule already exists."
+    # print "Traffic control rule already exists."
 } else {
     # Emulating a WiFi environment
     print "Adding traffic control rule..."
-    tc qdisc add dev eth0 root tbf rate 100mbit burst 200kbit latency 10ms
+    # qdisc: Queuing discipline
+    # tbf: Token Bucket Filter
+    # max average transmission rate: 100 megabits/s = 12.5 MB/s
+    # max time a packet can stay before being dropped: 50ms
+    tc qdisc add dev eth0 root tbf rate 100mbit burst 200kbit latency 50ms
 }
 
 def cleanup [] {
@@ -27,8 +31,10 @@ $env.RMW_IMPLEMENTATION = "rmw_zenoh_cpp"
 $env.RUST_LOG = "info"
 # $env.RUST_LOG = "trace"
 
-let use_compression = false
-let use_shared_memory = true
+let enable_compression = false
+let enable_shared_memory = false
+let enable_qos = false
+let qos_express = false
 
 # TODO: Implement it
 # let use_qos = false
@@ -78,7 +84,7 @@ let qos_config = [
         messages: ["put"],
 
         overwrite: {
-            # express: true,
+            express: $qos_express,
             priority: "data_high"
         }
     }
@@ -88,11 +94,11 @@ let qos_config = [
 let transport_config = {
     unicast: {
         compression: {
-            enabled: $use_compression
+            enabled: $enable_compression
         },
     }
     shared_memory: {
-        enabled: $use_shared_memory
+        enabled: $enable_shared_memory
     }
 }
 
@@ -120,18 +126,19 @@ let cfg = {
             # Encrypted Links: tls or quic
             # tls/172.28.0.2:7447
             quic/172.28.0.2:7447
+            # tcp/172.28.0.2:7447
         ]
         listen/endpoints: [
             tcp/localhost:7447
         ]
 
-        qos/network: $qos_config
+        qos/network: (if ($enable_qos) { $qos_config } else { [] })
 
         transport: ($transport_config | merge $tls_transport_config_client)
     }
 
     pub_node: {
-        qos/network: $qos_config
+        qos/network: (if ($enable_qos) { $qos_config } else { [] })
         transport: $transport_config
     }
 
@@ -164,6 +171,9 @@ def override_by [key: string] {
 
 def run_pub [] {
     let zenohd = job spawn {
+        if not ($env.RMW_IMPLEMENTATION =~ "zenoh") {
+            return
+        }
         with-env { ZENOH_CONFIG_OVERRIDE: (override_by 'pub_router') } {
             ros2 run rmw_zenoh_cpp rmw_zenohd o+e> _pub-router.log
         }
@@ -185,6 +195,9 @@ def run_pub [] {
 
 def run_sub [] {
     let zenohd = job spawn {
+        if not ($env.RMW_IMPLEMENTATION =~ "zenoh") {
+            return
+        }
         with-env { ZENOH_CONFIG_OVERRIDE: (override_by 'sub_router') } {
             ros2 run rmw_zenoh_cpp rmw_zenohd o+e> _sub-router.log
         }

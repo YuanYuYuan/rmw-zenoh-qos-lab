@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -347,6 +348,12 @@ void run_dual_subscriber(rcl_node_t *node, const std::string &topic1, const std:
     uint32_t latency_count1_last_second = 0, latency_count2_last_second = 0;
     size_t payload_size1 = 0, payload_size2 = 0;
 
+    uint32_t first_msg_id1 = 0, first_msg_id2 = 0;
+    uint32_t last_msg_id1 = 0, last_msg_id2 = 0;
+    uint32_t missed_events1 = 0, missed_events2 = 0;
+    bool first_msg1 = true, first_msg2 = true;
+
+
     while (1) {
         auto now = std::chrono::steady_clock::now();
         if (duration > 0.0) {
@@ -371,10 +378,29 @@ void run_dual_subscriber(rcl_node_t *node, const std::string &topic1, const std:
                 avg_latency2 = (latency_sum2 - latency_sum2_last_second) / msgs_with_latency2;
             }
 
+            double loss_rate1;
+            if (count1_last_second == count1) {
+                loss_rate1 = 100.0;
+            } else {
+                uint32_t total_expected1 = (first_msg1) ? 0 : last_msg_id1 - first_msg_id1;
+                loss_rate1 = (total_expected1 == 0) ? 0.0 : static_cast<double>(missed_events1) / total_expected1 * 100.0;
+            }
+
+            double loss_rate2;
+            if (count2_last_second == count2) {
+                loss_rate2 = 100.0;
+            } else {
+                uint32_t total_expected2 = (first_msg2) ? 0 : last_msg_id2 - first_msg_id2;
+                loss_rate2 = (total_expected2 == 0) ? 0.0 : static_cast<double>(missed_events2) / total_expected2 * 100.0;
+            }
+
+
             std::cout << topic1 << ": " << format_bytes(payload_size1) << ", " << std::fixed << std::setprecision(1) << rate1 << " Hz, "
                       << std::setprecision(2) << avg_latency1 << " ms, "
+                      << "loss: " << std::setprecision(2) << loss_rate1 << "%, "
                       << topic2 << ": " << format_bytes(payload_size2) << ", " << std::setprecision(1) << rate2 << " Hz, "
-                      << std::setprecision(2) << avg_latency2 << " ms" << std::endl;
+                      << std::setprecision(2) << avg_latency2 << " ms, "
+                      << "loss: " << std::setprecision(2) << loss_rate2 << "%" << std::endl;
 
             count1_last_second = count1;
             count2_last_second = count2;
@@ -406,6 +432,21 @@ void run_dual_subscriber(rcl_node_t *node, const std::string &topic1, const std:
                 count1++;
                 payload_size1 = msg.data.size;
 
+                if (msg.data.size >= sizeof(uint32_t)) {
+                    uint32_t msg_id;
+                    memcpy(&msg_id, msg.data.data, sizeof(uint32_t));
+                    if (first_msg1) {
+                        first_msg_id1 = msg_id;
+                        last_msg_id1 = msg_id;
+                        first_msg1 = false;
+                    } else {
+                        if (msg_id > last_msg_id1 + 1) {
+                            missed_events1++;
+                        }
+                        last_msg_id1 = msg_id;
+                    }
+                }
+
                 if (msg.data.size >= sizeof(uint32_t) + sizeof(int64_t)) {
                     int64_t send_timestamp;
                     memcpy(&send_timestamp, msg.data.data + sizeof(uint32_t), sizeof(int64_t));
@@ -425,6 +466,21 @@ void run_dual_subscriber(rcl_node_t *node, const std::string &topic1, const std:
             if (rc == RCL_RET_OK) {
                 count2++;
                 payload_size2 = msg.data.size;
+
+                if (msg.data.size >= sizeof(uint32_t)) {
+                    uint32_t msg_id;
+                    memcpy(&msg_id, msg.data.data, sizeof(uint32_t));
+                    if (first_msg2) {
+                        first_msg_id2 = msg_id;
+                        last_msg_id2 = msg_id;
+                        first_msg2 = false;
+                    } else {
+                        if (msg_id > last_msg_id2 + 1) {
+                            missed_events2++;
+                        }
+                        last_msg_id2 = msg_id;
+                    }
+                }
 
                 if (msg.data.size >= sizeof(uint32_t) + sizeof(int64_t)) {
                     int64_t send_timestamp;
