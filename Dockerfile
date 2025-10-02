@@ -1,9 +1,9 @@
-FROM ros:rolling
+FROM ros:humble
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Use Taiwan mirrors
-COPY ./taiwan-sources-noble.list /etc/apt/sources.list
+COPY ./taiwan-sources-jammy.list /etc/apt/sources.list
 
 RUN apt update -y && \
     apt upgrade -y && \
@@ -12,9 +12,9 @@ RUN apt update -y && \
 RUN apt install -y \
         cargo \
         iproute2 \
-        ros-rolling-ament-cmake-vendor-package \
-        ros-rolling-example-interfaces \
-        ros-rolling-rmw-cyclonedds-cpp \
+        ros-humble-ament-cmake-vendor-package \
+        ros-humble-example-interfaces \
+        ros-humble-rmw-cyclonedds-cpp \
         nlohmann-json3-dev \
         wget \
         xz-utils \
